@@ -37,16 +37,9 @@ function createDish(req, res) {
 function updateDish(req, res, next) {
   const { dishId } = req.params;
   const foundDish = dishes.find((dish) => dish.id === dishId);
-
-  if (!foundDish) {
-    return next({
-      status: 404,
-      message: `Dish does not exist: ${req.params.dishId}.`,
-    });
-  }
-
   const { data: { id, name, description, price, image_url } = {} } = req.body;
-
+  const validationError = validateDishData(name, description, price, image_url, type ='update');
+  
   if (id && id !== dishId) {
     return next({
       status: 400,
@@ -54,18 +47,10 @@ function updateDish(req, res, next) {
     });
   }
 
-  const validationError = validateDishData(name, description, price, image_url);
   if (validationError) {
     return next({
       status: 400,
       message: validationError,
-    });
-  }
-
-  if (price && typeof price !== 'number') {
-    return next({
-      status: 400,
-      message: 'price must be a number.',
     });
   }
 
@@ -78,19 +63,11 @@ function updateDish(req, res, next) {
   res.json({ data: foundDish });
 }
 
-function read(req, res, next) {
-  const dishId = req.params.dishId;
-  const foundDish = dishes.find((dish) => dish.id === dishId);
-
-  if (foundDish) {
-    res.locals.dish = foundDish;
-    return res.json({ data: foundDish });
-  }
-
-  next({ status: 404, message: `Dish does not exist: ${dishId}` });
-}
-
 function validateDishData(name, description, price, image_url) {
+  if (price && typeof price !== 'number') {
+    return 'price must be a number.';
+  }
+  
   if (!name || name.trim() === '') {
     return 'name is required.';
   }
@@ -114,9 +91,36 @@ function validateDishData(name, description, price, image_url) {
   return null; // No validation errors
 }
 
+function dishExists(req, res, next) {
+  const dishId = req.params.dishId;
+  const foundDish = dishes.find((dish) => dish.id === dishId);
+
+  if (!foundDish) {
+    return next({
+      status: 404,
+      message: `Dish not found: ${dishId}`,
+    });
+  }
+
+  res.locals.foundDish = foundDish;
+  next();
+}
+
+function read(req, res, next) {
+  const dishId = req.params.dishId;
+  const foundDish = dishes.find((dish) => dish.id === dishId);
+
+  if (foundDish) {
+    res.locals.dish = foundDish;
+    return res.json({ data: foundDish });
+  }
+
+  next({ status: 404, message: `Dish does not exist: ${dishId}` });
+}
+
 module.exports = {
   list,
   create: createDish,
   read,
-  update: updateDish,
+  update: [dishExists,updateDish],
 };
